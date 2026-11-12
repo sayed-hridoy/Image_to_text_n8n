@@ -1,0 +1,168 @@
+{
+  "name": "Capture_image_info",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extract-image",
+        "options": {
+          "allowedOrigins": "*",
+          "binaryPropertyName": "file"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        -208
+      ],
+      "id": "ad4baa64-c7ee-4453-b423-00cd6e6babca",
+      "name": "Webhook",
+      "webhookId": "46cd6854-42a2-40bc-88f9-e1e6fb6f5a50"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "AQ.Ab8RN6JDDdeecRZpFugtQdqHPdnP1TEYcW6qFPt-OudbwQ8lDA"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Analyze this image. Identify the document type and extract its important fields. Return only valid JSON with document_type, fields, and notes.\"\n        },\n        {\n          \"inline_data\": {\n            \"mime_type\": \"image/jpeg\",\n            \"data\": \"{{ $json.imageBase64 }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        288,
+        -208
+      ],
+      "id": "f3614077-feaf-4c3c-b59b-1af07c356734",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "\nimport json\n\n# Get Gemini's response from the previous node\nitems = _items\n\nresult = []\n\nfor item in items:\n    data = item[\"json\"]\n\n    try:\n        # Gemini response\n        candidates = data.get(\"candidates\", [])\n\n        if not candidates:\n            raise ValueError(\"Gemini returned no candidates\")\n\n        parts = candidates[0][\"content\"][\"parts\"]\n\n        response_text = \"\"\n\n        for part in parts:\n            if \"text\" in part:\n                response_text += part[\"text\"]\n\n        # Convert Gemini JSON text into Python dictionary\n        extracted = json.loads(response_text)\n\n        # Standardize the final response\n        final_data = {\n            \"success\": True,\n            \"document_type\": extracted.get(\n                \"document_type\", \"Unknown\"\n            ),\n            \"fields\": extracted.get(\"fields\", {}),\n            \"notes\": extracted.get(\"notes\", \"\")\n        }\n\n        result.append({\n            \"json\": final_data\n        })\n\n    except Exception as error:\n        result.append({\n            \"json\": {\n                \"success\": False,\n                \"error\": str(error),\n                \"document_type\": None,\n                \"fields\": {},\n                \"notes\": \"Could not extract information\"\n            }\n        })\n\nreturn result\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -144
+      ],
+      "id": "9c4b496e-8f78-435e-b2a4-02b65fa6cd07",
+      "name": "Code in Python1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        736,
+        -288
+      ],
+      "id": "bd10cea9-cb64-4b10-8e58-d0d9b146de8c",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "file0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        -208
+      ],
+      "id": "42c8999f-4631-4ef7-820e-630be33092b9",
+      "name": "Extract from File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in Python1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "cf3381c1-0e7e-4cd9-a45f-062969f0100f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f8db5e9bb4fc971dc3d639a1e1b3f0594db6e328548408f239fa3a50ca231562"
+  },
+  "nodeGroups": [],
+  "id": "fsJnTYCrRv1kEfjt",
+  "tags": []
+}
